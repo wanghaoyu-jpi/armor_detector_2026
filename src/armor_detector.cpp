@@ -33,7 +33,6 @@ void ArmorDetector::preprocess(const cv::Mat& frame)
     cv::morphologyEx(binary_, opened_, cv::MORPH_OPEN, open_kernel);
     cv::Mat close_kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(params_.close_kernel_size, params_.close_kernel_size));
     cv::morphologyEx(opened_, closed_, cv::MORPH_CLOSE, close_kernel);
-
 }
 
 
@@ -64,11 +63,6 @@ std::vector<LightBar> ArmorDetector::findLightBars()
         light.width = std::min(rect.size.width, rect.size.height);
         light.length = std::max(rect.size.width, rect.size.height);
 
-        if(light.width < 1e-3f)
-        {
-            std::cout<<"[灯条检测] 淘汰，灯条太窄"<<light.width<<std::endl;
-            continue; 
-        }
         float ratio = light.length / light.width;
         //倾斜角
         light.angle = rect.angle;
@@ -76,6 +70,7 @@ std::vector<LightBar> ArmorDetector::findLightBars()
         {
             light.angle += 90.0f;
         }
+        light.angle = std::abs(light.angle);
         if(!isValidLightBar(light))
         {
             std::cout<<"[灯条检测] 淘汰，灯条无效"<<std::endl;
@@ -160,10 +155,11 @@ std::vector<Armor> ArmorDetector::matchArmors(const std::vector<LightBar>& light
                 continue;
             }
             //角度差
-            float angle_diff = std::abs(left.angle - right.angle);
-            if(angle_diff > params_.max_angle_diff)
+            float angle_diff = std::abs(std::abs(left.angle) - std::abs(right.angle));
+            if(angle_diff > params_.max_angle_diff && (180.0f - angle_diff) > params_.max_angle_diff)
             {
                 std::cout<<"淘汰,角度差:"<<angle_diff<<std::endl;
+                std::cout<<"左灯条:"<<std::abs(left.angle)<<"右灯条："<<std::abs(right.angle)<<std::endl;
                 continue;
             }
             //高度比
@@ -270,18 +266,12 @@ std::vector<Armor> ArmorDetector::detect(const cv::Mat& frame)
             cv::line(debug_image_, vertices[i], vertices[(i + 1) % 4],
                      cv::Scalar(0, 255, 0), 2);
         }
-        cv::line(debug_image_, light.top, light.bottom, cv::Scalar(255, 0, 0), 2);
         cv::circle(debug_image_, light.center, 4, cv::Scalar(0, 255, 0), -1);
-        cv::circle(debug_image_, light.top, 3, cv::Scalar(0, 0, 255), -1);
-        cv::circle(debug_image_, light.bottom, 3, cv::Scalar(255, 0, 0), -1);
 
-    
-        cv::putText(debug_image_,
-                    std::to_string(idx),                     // 序号转字符串
-                    light.center + cv::Point2f(10, -10),     // 显示在中心点右上方
+        cv::putText(debug_image_, std::to_string(idx), light.center + cv::Point2f(10, 0),     // 显示在中心点右上方
                     cv::FONT_HERSHEY_SIMPLEX,
                     0.7,
-                    cv::Scalar(0, 255, 255),                 // 黄色
+                    cv::Scalar(0, 255, 255),                 
                     2);
     }
     //绘制装甲板
@@ -297,7 +287,7 @@ std::vector<Armor> ArmorDetector::detect(const cv::Mat& frame)
             cv::circle(debug_image_, armor.center, 5, cv::Scalar(0, 255, 255), -1);
             //装甲板中心坐标
             cv::putText(debug_image_, "(" + std::to_string((int)armor.center.x) + "," + 
-                        std::to_string((int)armor.center.y) + ")", armor.center + cv::Point2f(10, 10), 
+                        std::to_string((int)armor.center.y) + ")", armor.center + cv::Point2f(0, 10), 
                         cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 0), 1);
         }
         cv::Mat rvec, tvec;
@@ -308,7 +298,10 @@ std::vector<Armor> ArmorDetector::detect(const cv::Mat& frame)
             float distance = std::sqrt(tvec.at<double>(0) * tvec.at<double>(0) +
                                        tvec.at<double>(1) * tvec.at<double>(1) +
                                        tvec.at<double>(2) * tvec.at<double>(2));
-            std::cout<<"装甲板距离："<<distance / 1000.0 << "m" <<std::endl;
+            distance = distance / 1000.0;
+            std::cout<<"装甲板距离："<<distance << "m" <<std::endl;
+            cv::putText(debug_image_,std::to_string(distance) + "m", armor.center + cv::Point2f(0, 35), 
+                        cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 0), 1);
         }
     }
     return armors;
@@ -346,7 +339,7 @@ void ArmorDetector::detectImage(const std::string& image_path)
     cv::destroyAllWindows();
 
     //保存
-    std::string output_path = "result_" + image_path.substr(image_path.find_last_of("/\\") + 1);
+    std::string output_path = "result_" + image_path.substr(image_path.find_last_of("/") + 1);
     cv::imwrite(output_path, debug);
     std::cout << "结果保存到："<<output_path<<std::endl;
 
@@ -367,7 +360,6 @@ void ArmorDetector::detectVideo(const std::string& video_path)
     {
         cap.open(video_path);
         std::cout<<"视频文件："<<video_path<<std::endl;
-
     }
 
     if(!cap.isOpened())
@@ -379,6 +371,30 @@ void ArmorDetector::detectVideo(const std::string& video_path)
     int frame_height = (int)cap.get(cv::CAP_PROP_FRAME_HEIGHT);
     double fps = cap.get(cv::CAP_PROP_FPS);
     std::cout<<"分辨率："<<frame_width<<"x"<<frame_height<<",FPS"<<fps<<std::endl;
+
+    //结果写入视频路径
+    std::string output_video_path;
+    if(video_path == "0" || video_path == "cam")
+    {
+        output_video_path = "result_camera.mp4";
+    }
+    else
+    {
+        std::string filename = video_path.substr(video_path.find_last_of("/") + 1);
+        std::string name_without_ext = filename.substr(0, filename.find_last_of("."));
+        output_video_path = "result_" + name_without_ext + ".mp4";
+
+    }
+    //构建视频
+    int fourcc = cv::VideoWriter::fourcc('m', 'p', '4', 'v');
+    cv::VideoWriter writer(output_video_path, fourcc, fps, cv::Size(frame_width, frame_height));
+
+    if(!writer.isOpened())
+    {
+        std::cout<<"无法构建输出视频"<<std::endl;
+        return;
+    }
+    std::cout<<"结果视频将保存到："<<output_video_path<<std::endl;
 
     cv::Mat frame;
     int frame_count = 0;
@@ -394,7 +410,7 @@ void ArmorDetector::detectVideo(const std::string& video_path)
 
         frame_count++;
         std::vector<Armor> armors = detect(frame);
-        if(frame_count % 30 == 0)
+        if(frame_count % 60 == 0)
         {
             std::cout<<"帧"<<frame_count;
             if(!armors.empty())
@@ -411,6 +427,9 @@ void ArmorDetector::detectVideo(const std::string& video_path)
         cv::Mat debug = getDebugImage();
         cv::putText(debug,"Frame:" + std::to_string(frame_count), cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX,
                     0.8, cv::Scalar(0, 255, 0),2);
+        
+
+        writer.write(debug);
         cv::imshow("Armor Detection - Video", debug);
         char key = (char)cv::waitKey(1);
         if(key == 27)//esc

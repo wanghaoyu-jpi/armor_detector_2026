@@ -4,35 +4,35 @@
 int main(int argc, char* argv[])
 {
     cv::Mat camera_matrix = (cv::Mat_<double>(3, 3) << 
-        1500, 0, 640, 0, 1500, 360, 0, 0, 1);
-    cv::Mat dist_coeffs = cv::Mat::zeros(5, 1, CV_64F);
-
+        1567.7907457705167, 0.0, 662.3933648922284, 0.0, 1564.9113082257936, 536.8662848443158, 0.0, 0.0, 1.0);
+    cv::Mat dist_coeffs = (cv::Mat_<double>(5, 1) <<
+        -0.0682737005569565,  0.1983544402464456, 0.0016855914452479342, 0.0024125119646311016, 0.0);
     ArmorParams params;
     //蓝色
-    params.blue_lower_hsv = cv::Scalar(100, 120, 120);
-    params.blue_upper_hsv = cv::Scalar(130, 255, 255);
+    params.blue_lower_hsv = cv::Scalar(95, 110, 110);
+    params.blue_upper_hsv = cv::Scalar(135, 255, 255);
     //红色
-    params.red_lower_hsv1 = cv::Scalar(0, 120, 120);
-    params.red_upper_hsv1 = cv::Scalar(10, 255, 255);
-    params.red_lower_hsv2 = cv::Scalar(170, 120, 120);
+    params.red_lower_hsv1 = cv::Scalar(0, 110, 110);
+    params.red_upper_hsv1 = cv::Scalar(30, 255, 255);
+    params.red_lower_hsv2 = cv::Scalar(150, 110, 110);
     params.red_upper_hsv2 = cv::Scalar(180, 255, 255);
     //形态学参数
     params.open_kernel_size = 3;
     params.close_kernel_size = 5;
     //灯条筛选
-    params.min_light_area = 5.0f;
-    params.max_light_area = 4000.0f;
+    params.min_light_area = 30.0f;
+    params.max_light_area = 1000.0f;
     params.min_light_ratio = 0.1f;
     params.max_light_ratio = 10.0f;
-    params.max_light_angle = 60.0f;
+    params.max_light_angle = 20.0f;
     //装甲板筛选
-    params.max_center_y_diff = 50.0f;
-    params.max_angle_diff = 25.0f;
+    params.max_center_y_diff = 10.0f;
+    params.max_angle_diff = 30.0f;
     params.min_armor_ratio = 0.5f;
-    params.max_armor_ratio = 10.0f;
+    params.max_armor_ratio = 2.5f;
     //装甲板物理尺寸
-    params.armor_width = 140.0f;
-    params.armor_height = 125.0f;
+    params.armor_width = 135.0f;
+    params.armor_height = 55.0f;
     //检测器
     ArmorDetector detector(params, camera_matrix, dist_coeffs);
     //默认蓝色
